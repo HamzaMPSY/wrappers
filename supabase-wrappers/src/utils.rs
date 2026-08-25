@@ -3,7 +3,6 @@
 
 use crate::interface::{Cell, Column, Row};
 use pgrx::{
-    IntoDatum,
     list::List,
     pg_sys::panic::{ErrorReport, ErrorReportable},
     spi::Spi,
@@ -238,11 +237,11 @@ pub fn log_debug1(msg: &str) {
 /// report_info(&format!("this is an info"));
 /// ```
 #[inline]
-pub fn report_info(msg: &str) {
+pub fn report_info(msg: impl Into<String>) {
     ereport!(
         PgLogLevel::INFO,
         PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-        msg,
+        msg.into(),
         "Wrappers"
     );
 }
@@ -258,11 +257,11 @@ pub fn report_info(msg: &str) {
 /// report_notice(&format!("this is a notice"));
 /// ```
 #[inline]
-pub fn report_notice(msg: &str) {
+pub fn report_notice(msg: impl Into<String>) {
     ereport!(
         PgLogLevel::NOTICE,
         PgSqlErrorCode::ERRCODE_SUCCESSFUL_COMPLETION,
-        msg,
+        msg.into(),
         "Wrappers"
     );
 }
@@ -278,11 +277,11 @@ pub fn report_notice(msg: &str) {
 /// report_warning(&format!("this is a warning"));
 /// ```
 #[inline]
-pub fn report_warning(msg: &str) {
+pub fn report_warning(msg: impl Into<String>) {
     ereport!(
         PgLogLevel::WARNING,
         PgSqlErrorCode::ERRCODE_WARNING,
-        msg,
+        msg.into(),
         "Wrappers"
     );
 }
@@ -304,8 +303,8 @@ pub fn report_warning(msg: &str) {
 /// );
 /// ```
 #[inline]
-pub fn report_error(code: PgSqlErrorCode, msg: &str) {
-    ereport!(PgLogLevel::ERROR, code, msg, "Wrappers");
+pub fn report_error(code: PgSqlErrorCode, msg: impl Into<String>) {
+    ereport!(PgLogLevel::ERROR, code, msg.into(), "Wrappers");
 }
 
 #[derive(Error, Debug)]
@@ -378,7 +377,7 @@ pub fn get_vault_secret(secret_id_or_name: &str) -> Option<String> {
                 Err(err) => {
                     report_error(
                         PgSqlErrorCode::ERRCODE_FDW_ERROR,
-                        &format!("query vault failed \"{secret_id_or_name}\": {err}"),
+                        format!("query vault failed \"{secret_id_or_name}\": {err}"),
                     );
                     None
                 }
@@ -400,7 +399,7 @@ pub fn query_setting(name: &str) -> Option<String> {
         Err(err) => {
             report_error(
                 PgSqlErrorCode::ERRCODE_FDW_ERROR,
-                &format!("read session setting \"{name}\" failed: {err}"),
+                format!("read session setting \"{name}\" failed: {err}"),
             );
             None
         }
@@ -420,7 +419,7 @@ pub fn get_vault_secret_by_name(secret_name: &str) -> Option<String> {
         Err(err) => {
             report_error(
                 PgSqlErrorCode::ERRCODE_FDW_ERROR,
-                &format!("query vault failed \"{secret_name}\": {err}"),
+                format!("query vault failed \"{secret_name}\": {err}"),
             );
             None
         }
@@ -512,51 +511,6 @@ pub(super) unsafe fn extract_target_columns(
         });
 
         ret
-    }
-}
-
-// trait for "serialize" and "deserialize" state from specified memory context,
-// so that it is safe to be carried between the planning and the execution
-pub(super) trait SerdeList {
-    unsafe fn serialize_to_list(state: PgBox<Self>) -> *mut pg_sys::List
-    where
-        Self: Sized,
-    {
-        unsafe {
-            memcx::current_context(|mcx| {
-                let mut ret = List::<*mut c_void>::Nil;
-                let val = state.into_pg() as i64;
-                let cst: *mut pg_sys::Const = pg_sys::makeConst(
-                    pg_sys::INT8OID,
-                    -1,
-                    pg_sys::InvalidOid,
-                    8,
-                    val.into_datum().unwrap(),
-                    false,
-                    true,
-                );
-                ret.unstable_push_in_context(cst as _, mcx);
-                ret.into_ptr()
-            })
-        }
-    }
-
-    unsafe fn deserialize_from_list(list: *mut pg_sys::List) -> PgBox<Self>
-    where
-        Self: Sized,
-    {
-        unsafe {
-            memcx::current_context(|mcx| {
-                if let Some(list) = List::<*mut c_void>::downcast_ptr_in_memcx(list, mcx)
-                    && let Some(cst) = list.get(0)
-                {
-                    let cst = *(*cst as *mut pg_sys::Const);
-                    let ptr = i64::from_datum(cst.constvalue, cst.constisnull).unwrap();
-                    return PgBox::<Self>::from_pg(ptr as _);
-                }
-                PgBox::<Self>::null()
-            })
-        }
     }
 }
 

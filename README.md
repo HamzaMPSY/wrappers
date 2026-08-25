@@ -22,6 +22,7 @@
 | [HelloWorld](./wrappers/src/fdw/helloworld_fdw) | A demo FDW to show how to develop a basic FDW.                                |      |        |
 | [HubSpot](./wasm-wrappers/fdw/hubspot_fdw)      | A Wasm FDW for [HubSpot](https://www.hubspot.com/)                            | ✅   | ❌     |
 | [Infura](./wasm-wrappers/fdw/infura_fdw)        | A Wasm FDW for [Infura](https://www.infura.io/) blockchain data               | ✅   | ❌     |
+| [Langfuse](./wasm-wrappers/fdw/langfuse_fdw)    | A Wasm FDW for [Langfuse](https://langfuse.com/)                              | ✅   | ❌     |
 | [Logflare](./wrappers/src/fdw/logflare_fdw)     | A FDW for [Logflare](https://logflare.app/)                                   | ✅   | ❌     |
 | [MongoDB](./wrappers/src/fdw/mongodb_fdw)       | A FDW for [MongoDB](https://www.mongodb.com/)                                 | ✅   | ✅     |
 | [MySQL](./wrappers/src/fdw/mysql_fdw)           | A FDW for [MySQL](https://www.mysql.com/)                                     | ✅   | ✅     |
@@ -32,6 +33,7 @@
 | [Redis](./wrappers/src/fdw/redis_fdw)           | A FDW for [Redis](https://redis.io/)                                          | ✅   | ❌     |
 | [S3](./wrappers/src/fdw/s3_fdw)                 | A FDW for [AWS S3](https://aws.amazon.com/s3/)                                | ✅   | ❌     |
 | [S3 Vectors](./wrappers/src/fdw/s3vectors_fdw)  | A FDW for [AWS S3 Vectors](https://aws.amazon.com/s3/features/vectors/)       | ✅   | ✅     |
+| [Zarr](./wrappers/src/fdw/zarr_fdw)             | A read-only FDW for Zarr v2/v3 scientific arrays                              | ✅   | ❌     |
 | [SQL Server](./wrappers/src/fdw/mssql_fdw)      | A FDW for [Microsoft SQL Server](https://www.microsoft.com/en-au/sql-server/) | ✅   | ❌     |
 | [Slack](./wasm-wrappers/fdw/slack_fdw)          | A Wasm FDW for [Slack](https://www.slack.com/)                                | ✅   | ❌     |
 | [Snowflake](./wasm-wrappers/fdw/snowflake_fdw)  | A Wasm FDW for [Snowflake](https://www.snowflake.com/)                        | ✅   | ✅     |

@@ -333,7 +333,7 @@ fn create_table_config() -> TableConfig {
             "subscriptions",
             (
                 "subscriptions",
-                vec!["customer", "price", "status"],
+                vec!["customer", "status"],
                 vec![
                     ("id", "text"),
                     ("customer", "text"),
@@ -668,7 +668,7 @@ fn inc_stats_request_cnt(stats_metadata: &mut JsonB) -> StripeFdwResult<()> {
 }
 
 #[wrappers_fdw(
-    version = "0.1.13",
+    version = "0.1.14",
     author = "Supabase",
     website = "https://github.com/supabase/wrappers/tree/main/wrappers/src/fdw/stripe_fdw",
     error_type = "StripeFdwError"
@@ -952,7 +952,7 @@ impl ForeignDataWrapper<StripeFdwError> for StripeFdw {
 
             let json: JsonValue = serde_json::from_str(&body)?;
             if let Some(id) = json.get("id").and_then(|v| v.as_str()) {
-                report_info(&format!("inserted {} {}", self.obj, id));
+                report_info(format!("inserted {} {}", self.obj, id));
             }
 
             set_stats_metadata(stats_metadata);
@@ -1001,7 +1001,7 @@ impl ForeignDataWrapper<StripeFdwError> for StripeFdw {
 
                     let json: JsonValue = serde_json::from_str(&body)?;
                     if let Some(id) = json.get("id").and_then(|v| v.as_str()) {
-                        report_info(&format!("updated {} {}", self.obj, id));
+                        report_info(format!("updated {} {}", self.obj, id));
                     }
                 }
                 _ => unreachable!(),
@@ -1049,7 +1049,7 @@ impl ForeignDataWrapper<StripeFdwError> for StripeFdw {
 
                     let json: JsonValue = serde_json::from_str(&body)?;
                     if let Some(id) = json.get("id").and_then(|v| v.as_str()) {
-                        report_info(&format!("deleted {} {}", self.obj, id));
+                        report_info(format!("deleted {} {}", self.obj, id));
                     }
                 }
                 _ => unreachable!(),

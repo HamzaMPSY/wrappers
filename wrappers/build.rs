@@ -2,9 +2,13 @@ use std::fs;
 use std::path::Path;
 
 fn main() {
-    if std::env::var("CARGO_FEATURE_S3VECTORS_FDW").is_ok() {
-        generate_s3vec_type_sql();
-    }
+    // Generated unconditionally (regardless of the s3vectors_fdw feature) so that
+    // OUT_DIR always has this file, no matter which feature set a given build-script
+    // invocation resolves — e.g. rust-analyzer's build-script-data loading pass can
+    // land on a different feature context than its cfg-evaluated diagnostics pass,
+    // otherwise leading it to report the include!() in s3vec.rs as unresolvable
+    // even though the module is only ever compiled when the feature is on.
+    generate_s3vec_type_sql();
 }
 
 /// Generates `s3vec_type_sql.rs` in OUT_DIR, which contains the `pgrx::extension_sql!` call
@@ -111,7 +115,13 @@ END
 $s3vec_upgrade$;
 "#,
     name = "s3vec_type",
-    creates = [Type(S3Vec), Function(s3vec_knn), Function(metadata_filter)],
+    // S3Vec's type identity is already owned by `#[derive(PostgresType)]` in
+    // s3vec.rs (even with `#[pgrx(sql = false)]`, which only suppresses the
+    // emitted CREATE TYPE text, not the graph registration). Declaring
+    // `Type(S3Vec)` here too causes pgrx 0.19's schema generator to reject it
+    // as "type ident ... matched multiple SQL entities" — only the functions
+    // this block defines need to be declared here.
+    creates = [Function(s3vec_knn), Function(metadata_filter)],
 );
 "##
     );

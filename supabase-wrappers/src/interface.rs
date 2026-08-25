@@ -472,6 +472,20 @@ pub enum Value {
     Array(Vec<Cell>),
 }
 
+/// The runtime state of a parameter used by a [`Qual`].
+///
+/// This is separate from [`Value`] so adding SQL NULL support does not add a
+/// new variant to that public enum and break existing exhaustive matches.
+#[derive(Debug, Clone)]
+pub enum ParamValue {
+    /// The executor has not supplied a value yet.
+    Unevaluated,
+    /// The executor supplied SQL NULL.
+    Null,
+    /// The executor supplied a non-NULL value.
+    Value(Value),
+}
+
 // Struct for parameter expression value evaluation
 #[derive(Debug, Clone)]
 pub(super) struct ExprEval {
@@ -497,8 +511,52 @@ pub struct Param {
     /// parameter value which is evaluated during query execution
     pub eval_value: Arc<Mutex<Option<Value>>>,
 
+    /// Explicit runtime state, including the distinction between unevaluated
+    /// and SQL NULL. `eval_value` remains available for source compatibility.
+    pub(super) eval_state: Arc<Mutex<ParamValue>>,
+
     // internal variables for expression evaluation
     pub(super) expr_eval: ExprEval,
+}
+
+impl Param {
+    /// Return the current runtime parameter state.
+    pub fn evaluated_value(&self) -> ParamValue {
+        self.eval_state
+            .lock()
+            .expect("parameter evaluation state should be locked")
+            .clone()
+    }
+
+    pub(super) fn set_evaluated_value(&self, value: ParamValue) {
+        let legacy_value = match &value {
+            ParamValue::Value(value) => Some(value.clone()),
+            ParamValue::Unevaluated | ParamValue::Null => None,
+        };
+        *self
+            .eval_value
+            .lock()
+            .expect("parameter eval value should be locked") = legacy_value;
+        *self
+            .eval_state
+            .lock()
+            .expect("parameter evaluation state should be locked") = value;
+    }
+
+    #[cfg(test)]
+    pub(super) fn clone_for_execution(&self) -> Self {
+        Self {
+            kind: self.kind,
+            id: self.id,
+            type_oid: self.type_oid,
+            eval_value: Mutex::new(None).into(),
+            eval_state: Mutex::new(ParamValue::Unevaluated).into(),
+            expr_eval: ExprEval {
+                expr: self.expr_eval.expr,
+                expr_state: std::ptr::null_mut(),
+            },
+        }
+    }
 }
 
 /// Query restrictions, a.k.a conditions in `WHERE` clause
@@ -554,6 +612,28 @@ pub struct Qual {
 }
 
 impl Qual {
+    #[cfg(test)]
+    pub(super) fn clone_for_execution(&self) -> Self {
+        Self {
+            field: self.field.clone(),
+            operator: self.operator.clone(),
+            value: self.value.clone(),
+            use_or: self.use_or,
+            param: self.param.as_ref().map(Param::clone_for_execution),
+        }
+    }
+
+    /// Return the effective runtime value of this restriction.
+    ///
+    /// Constant restrictions return [`ParamValue::Value`]. Parameterized
+    /// restrictions expose SQL NULL and the pre-execution state explicitly.
+    pub fn evaluated_value(&self) -> ParamValue {
+        self.param
+            .as_ref()
+            .map(Param::evaluated_value)
+            .unwrap_or_else(|| ParamValue::Value(self.value.clone()))
+    }
+
     pub fn deparse(&self) -> String {
         let mut formatter = DefaultFormatter::new();
         self.deparse_with_fmt(&mut formatter)
@@ -851,6 +931,121 @@ impl Aggregate {
     }
 }
 
+/// A typed value emitted by an FDW's runtime [`EXPLAIN`](ForeignDataWrapper::explain) hook.
+///
+/// Keeping values typed preserves numbers and booleans in structured EXPLAIN
+/// formats instead of forcing every FDW-specific property through text.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExplainValue {
+    Text(String),
+    Integer {
+        value: i64,
+        unit: Option<String>,
+    },
+    Unsigned {
+        value: u64,
+        unit: Option<String>,
+    },
+    Float {
+        value: f64,
+        unit: Option<String>,
+        digits: i32,
+    },
+    Boolean(bool),
+}
+
+/// One FDW-specific property to append to `EXPLAIN ANALYZE` output.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExplainProperty {
+    pub label: String,
+    pub value: ExplainValue,
+}
+
+impl ExplainProperty {
+    pub fn text(label: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            value: ExplainValue::Text(value.into()),
+        }
+    }
+
+    pub fn integer(label: impl Into<String>, value: i64) -> Self {
+        Self {
+            label: label.into(),
+            value: ExplainValue::Integer { value, unit: None },
+        }
+    }
+
+    pub fn integer_with_unit(
+        label: impl Into<String>,
+        value: i64,
+        unit: impl Into<String>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            value: ExplainValue::Integer {
+                value,
+                unit: Some(unit.into()),
+            },
+        }
+    }
+
+    pub fn unsigned(label: impl Into<String>, value: u64) -> Self {
+        Self {
+            label: label.into(),
+            value: ExplainValue::Unsigned { value, unit: None },
+        }
+    }
+
+    pub fn unsigned_with_unit(
+        label: impl Into<String>,
+        value: u64,
+        unit: impl Into<String>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            value: ExplainValue::Unsigned {
+                value,
+                unit: Some(unit.into()),
+            },
+        }
+    }
+
+    pub fn float(label: impl Into<String>, value: f64, digits: i32) -> Self {
+        Self {
+            label: label.into(),
+            value: ExplainValue::Float {
+                value,
+                unit: None,
+                digits,
+            },
+        }
+    }
+
+    pub fn float_with_unit(
+        label: impl Into<String>,
+        value: f64,
+        unit: impl Into<String>,
+        digits: i32,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            value: ExplainValue::Float {
+                value,
+                unit: Some(unit.into()),
+                digits,
+            },
+        }
+    }
+
+    pub fn boolean(label: impl Into<String>, value: bool) -> Self {
+        Self {
+            label: label.into(),
+            value: ExplainValue::Boolean(value),
+        }
+    }
+}
+
 /// The Foreign Data Wrapper trait
 ///
 /// This is the main interface for your foreign data wrapper. Required functions
@@ -938,6 +1133,15 @@ pub trait ForeignDataWrapper<E: Into<ErrorReport>> {
     ///
     /// [See more details](https://www.postgresql.org/docs/current/fdw-callbacks.html#FDW-CALLBACKS-SCAN).
     fn end_scan(&mut self) -> Result<(), E>;
+
+    /// Return FDW-specific properties for a live scan's `EXPLAIN ANALYZE` output.
+    ///
+    /// The framework calls this only when execution constructed an FDW
+    /// instance. Plain `EXPLAIN` remains planning-only and never creates a
+    /// remote client for this hook. The default keeps existing FDWs unchanged.
+    fn explain(&self) -> Vec<ExplainProperty> {
+        Vec::new()
+    }
 
     /// Called when begin executing a foreign table modification operation.
     ///
@@ -1052,6 +1256,27 @@ pub trait ForeignDataWrapper<E: Into<ErrorReport>> {
     /// ```
     fn supports_group_by(&self) -> bool {
         false
+    }
+
+    /// Decide whether a specific aggregate query is safe for this FDW to push down.
+    ///
+    /// This query-specific hook runs after the framework has extracted the
+    /// aggregates and GROUP BY columns, but before it registers a foreign upper
+    /// path. The default preserves the behavior of existing aggregate-capable
+    /// FDWs. Implementations that require exact local predicate evaluation or
+    /// support only selected input/result type pairs can reject unsupported
+    /// shapes by returning `Ok(false)`.
+    #[allow(clippy::too_many_arguments)]
+    fn can_pushdown_aggregate(
+        &mut self,
+        _aggregates: &[Aggregate],
+        _group_by: &[Column],
+        _quals: &[Qual],
+        _base_columns: &[Column],
+        _all_base_quals_extracted: bool,
+        _options: &HashMap<String, String>,
+    ) -> Result<bool, E> {
+        Ok(true)
     }
 
     /// Estimate the size of aggregate query results for query planning.
@@ -1169,6 +1394,23 @@ pub trait ForeignDataWrapper<E: Into<ErrorReport>> {
              override this method when supported_aggregates() is non-empty",
         );
         unreachable!()
+    }
+
+    /// Begin aggregate execution with the base columns retained by the planner.
+    ///
+    /// The default delegates to [`begin_aggregate_scan`](Self::begin_aggregate_scan)
+    /// so existing FDWs remain source compatible. Local aggregate engines can
+    /// override this hook when they need the original input columns after the
+    /// ForeignScan target list has been replaced by aggregate result columns.
+    fn begin_aggregate_scan_with_base_columns(
+        &mut self,
+        aggregates: &[Aggregate],
+        group_by: &[Column],
+        quals: &[Qual],
+        _base_columns: &[Column],
+        options: &HashMap<String, String>,
+    ) -> Result<(), E> {
+        self.begin_aggregate_scan(aggregates, group_by, quals, options)
     }
 
     /// Obtain a list of foreign table creation commands
@@ -1307,211 +1549,127 @@ pub trait ForeignDataWrapper<E: Into<ErrorReport>> {
 mod tests {
     use super::*;
 
-    fn assert_cell_clone(cell: Cell) {
-        let cell_clone = cell.clone();
-
-        match (cell, cell_clone) {
-            (Cell::Bool(left), Cell::Bool(right)) => assert_eq!(left, right),
-            (Cell::I8(left), Cell::I8(right)) => assert_eq!(left, right),
-            (Cell::I16(left), Cell::I16(right)) => assert_eq!(left, right),
-            (Cell::F32(left), Cell::F32(right)) => assert_eq!(left, right),
-            (Cell::I32(left), Cell::I32(right)) => assert_eq!(left, right),
-            (Cell::F64(left), Cell::F64(right)) => assert_eq!(left, right),
-            (Cell::I64(left), Cell::I64(right)) => assert_eq!(left, right),
-            (Cell::String(left), Cell::String(right)) => assert_eq!(left, right),
-            (Cell::BoolArray(left), Cell::BoolArray(right)) => assert_eq!(left, right),
-            (Cell::I16Array(left), Cell::I16Array(right)) => assert_eq!(left, right),
-            (Cell::I32Array(left), Cell::I32Array(right)) => assert_eq!(left, right),
-            (Cell::I64Array(left), Cell::I64Array(right)) => assert_eq!(left, right),
-            (Cell::F32Array(left), Cell::F32Array(right)) => assert_eq!(left, right),
-            (Cell::F64Array(left), Cell::F64Array(right)) => assert_eq!(left, right),
-            (Cell::StringArray(left), Cell::StringArray(right)) => assert_eq!(left, right),
-            (left, right) => panic!("cell clone variant mismatch: left={left:?}, right={right:?}",),
-        }
-    }
-
-    // ==========================================================================
-    // Tests for Cell
-    // ==========================================================================
-    #[test]
-    fn test_cell_clone() {
-        let cell = Cell::String("hello".to_string());
-        assert_cell_clone(cell);
-    }
-
-    #[test]
-    fn test_cell_clone_primitives() {
-        let cases = vec![
-            Cell::Bool(true),
-            Cell::I8(-8),
-            Cell::I16(-16),
-            Cell::F32(123.456f32),
-            Cell::I32(32),
-            Cell::F64(654.321f64),
-            Cell::I64(64),
-            Cell::String("supabase".to_string()),
-        ];
-
-        for cell in cases {
-            assert_cell_clone(cell);
+    fn test_param() -> Param {
+        Param {
+            kind: pg_sys::ParamKind::PARAM_EXTERN,
+            id: 1,
+            type_oid: pg_sys::INT4OID,
+            eval_value: Mutex::new(None).into(),
+            eval_state: Mutex::new(ParamValue::Unevaluated).into(),
+            expr_eval: ExprEval {
+                expr: std::ptr::null_mut(),
+                expr_state: std::ptr::null_mut(),
+            },
         }
     }
 
     #[test]
-    fn test_cell_clone_array_variants() {
-        let cases = vec![
-            Cell::BoolArray(vec![Some(true), None, Some(false)]),
-            Cell::I16Array(vec![Some(-1), None, Some(2)]),
-            Cell::I32Array(vec![Some(-10), None, Some(20)]),
-            Cell::I64Array(vec![Some(-100), None, Some(200)]),
-            Cell::F32Array(vec![Some(1.5), None, Some(2.5)]),
-            Cell::F64Array(vec![Some(10.5), None, Some(20.5)]),
-            Cell::StringArray(vec![Some("a".to_string()), None, Some("b".to_string())]),
-        ];
+    fn test_parameter_value_distinguishes_unevaluated_null_and_value() {
+        let param = test_param();
+        assert!(matches!(param.evaluated_value(), ParamValue::Unevaluated));
 
-        for cell in cases {
-            let cell_clone = cell.clone();
-            assert_cell_clone(cell);
-            assert!(cell_clone.is_array());
-        }
-    }
-
-    #[test]
-    fn test_cell_clone_deep_copy_for_owned_types() {
-        let mut string_cell = Cell::String("hello".to_string());
-        let string_cell_clone = string_cell.clone();
-        if let Cell::String(value) = &mut string_cell {
-            value.push_str(" world");
-        }
-        match string_cell_clone {
-            Cell::String(value) => assert_eq!(value, "hello"),
-            other => panic!("expected Cell::String clone, got {other:?}"),
-        }
-        match string_cell {
-            Cell::String(value) => assert_eq!(value, "hello world"),
-            other => panic!("expected mutated Cell::String, got {other:?}"),
-        }
-
-        let mut string_array_cell =
-            Cell::StringArray(vec![Some("foo".to_string()), None, Some("bar".to_string())]);
-        let string_array_cell_clone = string_array_cell.clone();
-        if let Cell::StringArray(values) = &mut string_array_cell {
-            values[0] = Some("baz".to_string());
-        }
-        match string_array_cell_clone {
-            Cell::StringArray(values) => {
-                assert_eq!(
-                    values,
-                    vec![Some("foo".to_string()), None, Some("bar".to_string())]
-                )
-            }
-            other => panic!("expected Cell::StringArray clone, got {other:?}"),
-        }
-        match string_array_cell {
-            Cell::StringArray(values) => {
-                assert_eq!(
-                    values,
-                    vec![Some("baz".to_string()), None, Some("bar".to_string())]
-                )
-            }
-            other => panic!("expected mutated Cell::StringArray, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn test_cell_display_primitives_and_string() {
-        assert_eq!(format!("{}", Cell::Bool(true)), "true");
-        assert_eq!(format!("{}", Cell::I8(-8)), "-8");
-        assert_eq!(format!("{}", Cell::I16(16)), "16");
-        assert_eq!(format!("{}", Cell::I32(32)), "32");
-        assert_eq!(format!("{}", Cell::I64(64)), "64");
-        assert_eq!(format!("{}", Cell::F32(3.5)), "3.5");
-        assert_eq!(format!("{}", Cell::F64(7.25)), "7.25");
-        assert_eq!(format!("{}", Cell::String("hello".to_string())), "'hello'");
-    }
-
-    #[test]
-    fn test_cell_display_arrays_with_nulls() {
-        assert_eq!(
-            format!("{}", Cell::BoolArray(vec![Some(true), None, Some(false)])),
-            "[true,null,false]"
+        param.set_evaluated_value(ParamValue::Null);
+        assert!(matches!(param.evaluated_value(), ParamValue::Null));
+        assert!(
+            param
+                .eval_value
+                .lock()
+                .expect("legacy eval value should be locked")
+                .is_none()
         );
-        assert_eq!(
-            format!("{}", Cell::I32Array(vec![Some(1), None, Some(3)])),
-            "[1,null,3]"
-        );
-        assert_eq!(
-            format!(
-                "{}",
-                Cell::StringArray(vec![Some("foo".to_string()), None, Some("bar".to_string())])
-            ),
-            "[foo,null,bar]"
+
+        param.set_evaluated_value(ParamValue::Value(Value::Cell(Cell::I32(42))));
+        assert!(matches!(
+            param.evaluated_value(),
+            ParamValue::Value(Value::Cell(Cell::I32(42)))
+        ));
+        assert!(matches!(
+            &*param
+                .eval_value
+                .lock()
+                .expect("legacy eval value should be locked"),
+            Some(Value::Cell(Cell::I32(42)))
+        ));
+
+        param.set_evaluated_value(ParamValue::Null);
+        assert!(matches!(param.evaluated_value(), ParamValue::Null));
+        assert!(
+            param
+                .eval_value
+                .lock()
+                .expect("legacy eval value should be locked")
+                .is_none()
         );
     }
 
     #[test]
-    fn test_cell_display_empty_arrays() {
-        assert_eq!(format!("{}", Cell::BoolArray(vec![])), "[]");
-        assert_eq!(format!("{}", Cell::I16Array(vec![])), "[]");
-        assert_eq!(format!("{}", Cell::I32Array(vec![])), "[]");
-        assert_eq!(format!("{}", Cell::I64Array(vec![])), "[]");
-        assert_eq!(format!("{}", Cell::F32Array(vec![])), "[]");
-        assert_eq!(format!("{}", Cell::F64Array(vec![])), "[]");
-        assert_eq!(format!("{}", Cell::StringArray(vec![])), "[]");
+    fn test_qual_evaluated_value_uses_constant_or_parameter_state() {
+        let constant = Qual {
+            field: "value".to_string(),
+            operator: "=".to_string(),
+            value: Value::Cell(Cell::I32(7)),
+            use_or: false,
+            param: None,
+        };
+        assert!(matches!(
+            constant.evaluated_value(),
+            ParamValue::Value(Value::Cell(Cell::I32(7)))
+        ));
+
+        let parameter = test_param();
+        parameter.set_evaluated_value(ParamValue::Null);
+        let parameterized = Qual {
+            field: "value".to_string(),
+            operator: "=".to_string(),
+            value: Value::Cell(Cell::I64(0)),
+            use_or: false,
+            param: Some(parameter),
+        };
+        assert!(matches!(parameterized.evaluated_value(), ParamValue::Null));
     }
 
-    #[cfg(all(feature = "pg_test", pgrx_embed))]
     #[test]
-    fn test_cell_into_datum_scalars_round_trip() {
-        let bool_datum = Cell::Bool(true).into_datum().expect("bool should convert");
-        let bool_value =
-            unsafe { bool::from_datum(bool_datum, false) }.expect("bool should decode");
-        assert!(bool_value);
+    fn test_qual_execution_clone_has_independent_parameter_state() {
+        let parameter = test_param();
+        parameter.set_evaluated_value(ParamValue::Value(Value::Cell(Cell::I32(11))));
+        let planned = Qual {
+            field: "value".to_string(),
+            operator: "=".to_string(),
+            value: Value::Cell(Cell::I64(0)),
+            use_or: false,
+            param: Some(parameter),
+        };
 
-        let i32_datum = Cell::I32(42).into_datum().expect("i32 should convert");
-        let i32_value = unsafe { i32::from_datum(i32_datum, false) }.expect("i32 should decode");
-        assert_eq!(i32_value, 42);
+        let execution = planned.clone_for_execution();
+        let planned_param = planned.param.as_ref().expect("planned parameter");
+        let execution_param = execution.param.as_ref().expect("execution parameter");
 
-        let f64_datum = Cell::F64(12.5).into_datum().expect("f64 should convert");
-        let f64_value = unsafe { f64::from_datum(f64_datum, false) }.expect("f64 should decode");
-        assert_eq!(f64_value, 12.5);
+        assert!(matches!(
+            planned_param.evaluated_value(),
+            ParamValue::Value(Value::Cell(Cell::I32(11)))
+        ));
+        assert!(matches!(
+            execution_param.evaluated_value(),
+            ParamValue::Unevaluated
+        ));
+        assert!(!Arc::ptr_eq(
+            &planned_param.eval_state,
+            &execution_param.eval_state
+        ));
+        assert!(!Arc::ptr_eq(
+            &planned_param.eval_value,
+            &execution_param.eval_value
+        ));
 
-        let string_datum = Cell::String("hello".to_string())
-            .into_datum()
-            .expect("string should convert");
-        let string_value =
-            unsafe { String::from_datum(string_datum, false) }.expect("string should decode");
-        assert_eq!(string_value, "hello");
-    }
-
-    #[cfg(all(feature = "pg_test", pgrx_embed))]
-    #[test]
-    fn test_cell_into_datum_arrays_round_trip() {
-        let bool_array_datum = Cell::BoolArray(vec![Some(true), None, Some(false)])
-            .into_datum()
-            .expect("bool array should convert");
-        let bool_array_value = unsafe { Vec::<Option<bool>>::from_datum(bool_array_datum, false) }
-            .expect("bool array should decode");
-        assert_eq!(bool_array_value, vec![Some(true), None, Some(false)]);
-
-        let i64_array_datum = Cell::I64Array(vec![Some(1), None, Some(3)])
-            .into_datum()
-            .expect("i64 array should convert");
-        let i64_array_value = unsafe { Vec::<Option<i64>>::from_datum(i64_array_datum, false) }
-            .expect("i64 array should decode");
-        assert_eq!(i64_array_value, vec![Some(1), None, Some(3)]);
-
-        let string_array_datum =
-            Cell::StringArray(vec![Some("foo".to_string()), None, Some("bar".to_string())])
-                .into_datum()
-                .expect("string array should convert");
-        let string_array_value =
-            unsafe { Vec::<Option<String>>::from_datum(string_array_datum, false) }
-                .expect("string array should decode");
-        assert_eq!(
-            string_array_value,
-            vec![Some("foo".to_string()), None, Some("bar".to_string())]
-        );
+        execution_param.set_evaluated_value(ParamValue::Null);
+        assert!(matches!(
+            planned_param.evaluated_value(),
+            ParamValue::Value(Value::Cell(Cell::I32(11)))
+        ));
+        assert!(matches!(
+            execution_param.evaluated_value(),
+            ParamValue::Null
+        ));
     }
 
     #[test]

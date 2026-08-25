@@ -19,7 +19,7 @@ mod tests {
                 r#"CREATE SERVER snowflake_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/snowflake_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/snowflake_fdw.wasm',
                        fdw_package_name 'supabase:snowflake-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/snowflake/{}',
@@ -65,7 +65,7 @@ mod tests {
                 r#"CREATE SERVER paddle_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/paddle_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/paddle_fdw.wasm',
                        fdw_package_name 'supabase:paddle-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/paddle',
@@ -182,7 +182,7 @@ mod tests {
                 r#"CREATE SERVER notion_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/notion_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/notion_fdw.wasm',
                        fdw_package_name 'supabase:notion-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/notion',
@@ -231,7 +231,7 @@ mod tests {
                 r#"CREATE SERVER calendly_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/calendly_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/calendly_fdw.wasm',
                        fdw_package_name 'supabase:calendly-fdw',
                        fdw_package_version '>=0.1.0',
                        organization 'https://api.calendly.com/organizations/xxx',
@@ -275,7 +275,7 @@ mod tests {
                 r#"CREATE SERVER cal_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/cal_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/cal_fdw.wasm',
                        fdw_package_name 'supabase:cal-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/cal',
@@ -315,7 +315,7 @@ mod tests {
                 r#"CREATE SERVER cfd1_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/cfd1_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/cfd1_fdw.wasm',
                        fdw_package_name 'supabase:cfd1-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/cfd1',
@@ -356,7 +356,7 @@ mod tests {
                 r#"CREATE SERVER clerk_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/clerk_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/clerk_fdw.wasm',
                        fdw_package_name 'supabase:clerk-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/clerk',
@@ -400,7 +400,7 @@ mod tests {
                 r#"CREATE SERVER orb_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/orb_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/orb_fdw.wasm',
                        fdw_package_name 'supabase:orb-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/orb',
@@ -442,7 +442,7 @@ mod tests {
                 r#"CREATE SERVER hubspot_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/hubspot_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/hubspot_fdw.wasm',
                        fdw_package_name 'supabase:hubspot-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/hubspot',
@@ -522,7 +522,7 @@ mod tests {
                 r#"CREATE SERVER shopify_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/shopify_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/shopify_fdw.wasm',
                        fdw_package_name 'supabase:shopify-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/shopify',
@@ -560,7 +560,7 @@ mod tests {
                 r#"CREATE SERVER infura_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/infura_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/infura_fdw.wasm',
                        fdw_package_name 'supabase:infura-fdw',
                        fdw_package_version '>=0.1.0',
                        api_url 'http://localhost:8096/infura',
@@ -610,7 +610,7 @@ mod tests {
                 r#"CREATE SERVER openapi_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/openapi_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/openapi_fdw.wasm',
                        fdw_package_name 'supabase:openapi-fdw',
                        fdw_package_version '>=0.1.0',
                        base_url 'http://localhost:8096/openapi',
@@ -866,7 +866,7 @@ mod tests {
                 r#"CREATE SERVER openapi_auth_server
                      FOREIGN DATA WRAPPER wasm_wrapper
                      OPTIONS (
-                       fdw_package_url 'file://../../../wasm-wrappers/fdw/target/wasm32-unknown-unknown/release/openapi_fdw.wasm',
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/openapi_fdw.wasm',
                        fdw_package_name 'supabase:openapi-fdw',
                        fdw_package_version '>=0.1.0',
                        base_url 'http://localhost:8096/openapi',
@@ -917,6 +917,116 @@ mod tests {
                 .filter_map(|r| r.get_by_name::<&str, _>("received_auth").unwrap())
                 .collect::<Vec<_>>();
             assert_eq!(injected, vec!["Bearer sess-secret-123"]);
+
+            // Langfuse FDW test
+            c.update(
+                r#"CREATE SERVER langfuse_server
+                     FOREIGN DATA WRAPPER wasm_wrapper
+                     OPTIONS (
+                       fdw_package_url 'file://../../../target/wasm32-unknown-unknown/release/langfuse_fdw.wasm',
+                       fdw_package_name 'supabase:langfuse-fdw',
+                       fdw_package_version '>=0.1.0',
+                       api_url 'http://localhost:8096/langfuse',
+                       public_key 'pk-lf-aaa',
+                       secret_key 'sk-lf-bbb',
+                       page_size '1'
+                     )"#,
+                None,
+                &[],
+            )
+            .unwrap();
+            c.update(
+                r#"
+                  CREATE FOREIGN TABLE langfuse_traces (
+                    id text,
+                    name text,
+                    user_id text,
+                    total_cost double precision,
+                    latency double precision,
+                    timestamp timestamp,
+                    metadata jsonb
+                  )
+                  SERVER langfuse_server
+                  OPTIONS (
+                    object 'traces',
+                    rowid_column 'id'
+                  )
+             "#,
+                None,
+                &[],
+            )
+            .unwrap();
+
+            // page_size is 1 against a two-page mock, so this only returns both rows if
+            // pagination is followed past the first response.
+            let results = c
+                .select("SELECT * FROM langfuse_traces ORDER BY id", None, &[])
+                .unwrap()
+                .filter_map(|r| r.get_by_name::<&str, _>("id").unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(results, vec!["trace-1", "trace-2"]);
+
+            // Equality on user_id is pushed down as a query param. The mock answers with
+            // no rows for any other value, so a dropped filter fails here.
+            let filtered = c
+                .select(
+                    "SELECT id FROM langfuse_traces WHERE user_id = 'user-bob'",
+                    None,
+                    &[],
+                )
+                .unwrap()
+                .filter_map(|r| r.get_by_name::<&str, _>("id").unwrap())
+                .collect::<Vec<_>>();
+            assert!(filtered.is_empty());
+
+            c.update(
+                r#"
+                  CREATE FOREIGN TABLE langfuse_observations (
+                    id text,
+                    trace_id text,
+                    model text,
+                    input_tokens bigint,
+                    output_tokens bigint,
+                    total_tokens bigint,
+                    total_cost double precision,
+                    start_time timestamp
+                  )
+                  SERVER langfuse_server
+                  OPTIONS (
+                    object 'observations',
+                    rowid_column 'id'
+                  )
+             "#,
+                None,
+                &[],
+            )
+            .unwrap();
+
+            // The two mock rows spell usage and cost differently: obs-1 nests them under
+            // usageDetails/costDetails, obs-2 uses the flat promptTokens and
+            // calculatedTotalCost forms. Both must land in the same columns, so a missing
+            // fallback shows up as a NULL that filter_map drops.
+            let tokens = c
+                .select(
+                    "SELECT input_tokens FROM langfuse_observations ORDER BY id",
+                    None,
+                    &[],
+                )
+                .unwrap()
+                .filter_map(|r| r.get_by_name::<i64, _>("input_tokens").unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(tokens, vec![1200, 4300]);
+
+            let costs = c
+                .select(
+                    "SELECT total_cost FROM langfuse_observations ORDER BY id",
+                    None,
+                    &[],
+                )
+                .unwrap()
+                .filter_map(|r| r.get_by_name::<f64, _>("total_cost").unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(costs, vec![0.0435, 0.0294]);
         });
     }
 }
